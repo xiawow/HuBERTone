@@ -87,12 +87,6 @@ WebUI 参数说明：
 - `scale`：输出嵌入的缩放因子
 - `direct_average`：是否跳过方向归一化直接加权平均
 
-## 模型架构
-
-1. **特征提取**：冻结的 HuBERT (`facebook/hubert-base-ls960`) 第 8 层
-2. **池化**：注意力统计池化（Attentive Statistics Pooling）
-3. **预测头**：残差 MLP，输出 32 维方向向量 + 1 维幅度标量
-
 ## License
 
 See [LICENSE](LICENSE) for details.
