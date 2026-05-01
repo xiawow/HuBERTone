@@ -19,6 +19,7 @@ from torch.utils.data import DataLoader, Subset
 from tqdm import tqdm
 
 from hubert.data import HubertWindowDataset, make_collate_fn
+from hubert.inference import DEFAULT_LAYER_IDX, DEFAULT_MIN_COVERAGE, DEFAULT_MIN_RMS_RATIO
 from hubert.model import FrozenHubertSvModel
 
 
@@ -339,10 +340,10 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Train frozen HuBERT + attentive pooling + MLP.")
     parser.add_argument("--wav_dir", type=str, default="wav", help="Directory of wav files")
     parser.add_argument("--emb_list", type=str, default="emb_list.json", help="JSON list with SV embeddings")
-    parser.add_argument("--save_path", type=str, default="hubert_sv_model.pth", help="Output checkpoint path")
+    parser.add_argument("--save_path", type=str, default="checkpoints/hubert_sv_model.pth", help="Output checkpoint path")
 
     parser.add_argument("--hubert_name", type=str, default="facebook/hubert-base-ls960")
-    parser.add_argument("--layer_idx", type=int, default=8, help="Hidden state index to use (layer 8 by default)")
+    parser.add_argument("--layer_idx", type=int, default=DEFAULT_LAYER_IDX, help="Hidden state index to use (layer 8 by default)")
     parser.add_argument("--sample_rate", type=int, default=16000)
     parser.add_argument(
         "--cache_dir",
@@ -365,8 +366,8 @@ def parse_args() -> argparse.Namespace:
 
     parser.add_argument("--window_sec", type=float, default=8.0)
     parser.add_argument("--hop_sec", type=float, default=4.0)
-    parser.add_argument("--min_coverage", type=float, default=0.75)
-    parser.add_argument("--min_rms_ratio", type=float, default=0.2)
+    parser.add_argument("--min_coverage", type=float, default=DEFAULT_MIN_COVERAGE)
+    parser.add_argument("--min_rms_ratio", type=float, default=DEFAULT_MIN_RMS_RATIO)
 
     parser.add_argument("--train_fraction", type=float, default=0.9)
     parser.add_argument("--seed", type=int, default=114514)

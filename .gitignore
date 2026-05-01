@@ -1,2 +1,25 @@
-model/
+# Model weights
 *.pth
+checkpoints/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+
+# Gradio
+.gradio/
+
+# HuggingFace cache
+hf_cache/
+
+# Audio cache
+cache_16k/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
