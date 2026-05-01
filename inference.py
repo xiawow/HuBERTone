@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import List
 
 import numpy as np
 import torch
@@ -43,11 +44,29 @@ def load_checkpoint(
         if not hubert_name:
             hubert_name = str(config.get("hubert_name", hubert_name))
         layer_idx = int(config.get("layer_idx", layer_idx))
+        layer_indices = config.get("layer_indices", [4, 8, 12])
+        use_multi_layer = config.get("use_multi_layer", True)
+        attn_hidden_dim = int(config.get("attn_hidden_dim", 256))
+        out_dim = int(config.get("out_dim", 32))
+        dropout = float(config.get("dropout", 0.1))
         model_state = checkpoint["model_state_dict"]
     else:
+        layer_indices = [4, 8, 12]
+        use_multi_layer = True
+        attn_hidden_dim = 256
+        out_dim = 32
+        dropout = 0.1
         model_state = checkpoint
 
-    model = FrozenHubertSvModel(hubert_name=hubert_name, layer_idx=layer_idx)
+    model = FrozenHubertSvModel(
+        hubert_name=hubert_name,
+        layer_idx=layer_idx,
+        layer_indices=layer_indices,
+        use_multi_layer=use_multi_layer,
+        attn_hidden_dim=attn_hidden_dim,
+        out_dim=out_dim,
+        dropout=dropout,
+    )
     if any(k.startswith("_orig_mod.") for k in model_state.keys()):
         model_state = {k.replace("_orig_mod.", "", 1): v for k, v in model_state.items()}
     model.load_state_dict(model_state, strict=False)
@@ -139,6 +158,67 @@ def extract_embedding(
             dir_agg = dir_agg / dir_norm
         r = float(np.average(mag_pred, weights=gauss_weights))
         aggregated = dir_agg * r
+
+    if scale != 1.0:
+        aggregated = aggregated * float(scale)
+
+    hex_text = float32_to_hex(aggregated)
+    return aggregated, hex_text
+
+
+def extract_embedding_multi_scale(
+    model: FrozenHubertSvModel,
+    wav: torch.Tensor,
+    device: torch.device,
+    windows: list[float] | None = None,
+    hops: list[float] | None = None,
+    min_coverage: float = DEFAULT_MIN_COVERAGE,
+    min_rms_ratio: float = DEFAULT_MIN_RMS_RATIO,
+    gauss_sigma_ratio: float = DEFAULT_GAUSS_SIGMA_RATIO,
+    scale: float = DEFAULT_SCALE,
+    direct_average: bool = False,
+) -> tuple[np.ndarray, str]:
+    """Extract embedding using multiple window scales and aggregate.
+
+    Args:
+        windows: list of window sizes in seconds (default: [1.6, 3.2, 8.0])
+        hops: list of hop sizes in seconds (default: [0.8, 1.6, 4.0])
+    """
+    if windows is None:
+        windows = [1.6, 3.2, 8.0]
+    if hops is None:
+        hops = [0.8, 1.6, 4.0]
+
+    if len(windows) != len(hops):
+        raise ValueError(f"windows and hops must have same length, got {len(windows)} vs {len(hops)}")
+
+    embeddings: list[np.ndarray] = []
+    for win, hop in zip(windows, hops):
+        try:
+            emb, _ = extract_embedding(
+                model=model,
+                wav=wav,
+                device=device,
+                window_sec=win,
+                hop_sec=hop,
+                min_coverage=min_coverage,
+                min_rms_ratio=min_rms_ratio,
+                gauss_sigma_ratio=gauss_sigma_ratio,
+                scale=1.0,
+                direct_average=direct_average,
+            )
+            embeddings.append(emb)
+        except RuntimeError:
+            continue
+
+    if not embeddings:
+        raise RuntimeError("All scales failed to produce embeddings.")
+
+    aggregated = np.mean(embeddings, axis=0)
+
+    norm = np.linalg.norm(aggregated)
+    if norm > 0:
+        aggregated = aggregated / norm * np.mean([np.linalg.norm(e) for e in embeddings])
 
     if scale != 1.0:
         aggregated = aggregated * float(scale)
